@@ -1,12 +1,13 @@
 # relayshield-claude-plugin
 
-Claude Code plugin: a PreToolUse hook that screens URLs and wallet addresses
-against RelayShield's threat-intel corpus before the agent fetches them.
+Claude Code plugin: a PreToolUse hook that screens URLs, wallet addresses,
+and applicant emails against RelayShield's threat-intel corpus before the
+agent acts on them.
 
 ## What it does
 
 When the agent is about to fetch a URL (WebFetch), the hook calls
-RelayShield's free keyless API and grades the target:
+RelayShield's free keyless API and grades each target:
 
 - **high**: the tool call is blocked. The agent is told what was flagged
   (target, score, top reasons, corpus provenance) and to stop or ask the user.
@@ -21,7 +22,7 @@ against the target right now, not proof it is clean.
 
 ```bash
 claude plugin marketplace add nzdsf2-gif/relayshield-claude-plugin
-claude plugin install relayshield-prebind-screen
+claude plugin install relayshield-guard
 ```
 
 Or point Claude Code at this repo as a plugin directory. The hook needs
@@ -30,10 +31,16 @@ No API key, no signup.
 
 ## Contents
 
-- `relayshield-prebind-screen/`: the plugin (manifest, hook, compiled JS).
+- `relayshield-guard/`: the plugin (manifest, hook, compiled JS). Replaces
+  the former `relayshield-prebind-screen` plugin; it is a strict superset
+  (URLs, EVM/Solana/Bitcoin wallets, applicant emails).
 - `skills/relayshield-prebind-screen/SKILL.md`: the pre-bind fraud screen
   skill for insurance-shopping agents (applicant email, payment links and
   wallets, screened before an application is submitted or a policy bound).
+
+## License
+
+MIT. See `LICENSE`.
 
 ## Links
 

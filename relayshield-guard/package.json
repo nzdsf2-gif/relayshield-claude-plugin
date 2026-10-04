@@ -1,0 +1,1 @@
+{"name":"relayshield-guard","private":true,"scripts":{"build":"tsc"},"type":"commonjs","version":"1.0.0","dependencies":{"@types/node":"^26.6.4","typescript":"^7.0.2"}}

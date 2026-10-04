@@ -1,0 +1,1 @@
+{"author":{"name":"RelayShield"},"description":"PreToolUse guard: screens URLs, wallet addresses, and applicant emails in tool calls against RelayShield's threat-intel corpus before the agent acts. Blocks high-risk calls, warns on medium, fails open on unknown or errors. Free, keyless, never declares anything safe.","name":"relayshield-guard","version":"1.0.0"}
