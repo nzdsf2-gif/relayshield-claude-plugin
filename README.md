@@ -1,77 +1,86 @@
-# relayshield-claude-plugin
+# RelayShield Guard (Claude Code mod)
 
-Claude Code plugin: a PreToolUse hook that screens URLs, wallet addresses,
-and applicant emails against RelayShield's threat-intel corpus before the
-agent acts on them.
+**Pre-invocation screening for AI agent actions.** A PreToolUse guard that
+screens what your agent is about to touch, against RelayShield's
+threat-intelligence corpus (661K+ indicators from 123 monitored
+marketplaces), *before* the tool call executes. Covers `WebFetch` calls and
+MCP server tool invocations (`mcp__*`).
 
 ## What it screens
 
-- **URLs** from `WebFetch` calls (and any `url` field in tool input)
+- **URLs** from `WebFetch` calls and any URL found anywhere in an MCP tool's
+  input
 - **Wallet addresses**: EVM (`0x...`), Solana (base58), Bitcoin (bech32 `bc1...`)
 - **Applicant emails** (`from_address` / `email` fields): the insurance
   pre-bind screening case, kept as one covered input rather than the whole
   product
 
-## Behavior
+## Behavior (tri-state grading)
 
-- **high**: the tool call is blocked. The agent is told what was flagged
-  (target, score, top reasons, corpus provenance) and to stop or ask the user.
-- **medium**: the call is allowed, with a warning.
-- **unknown**, or the check fails or times out: the call is allowed with a
-  one-line note. Fail open, never silent.
+Every screened call gets one grade, printed to stderr:
 
-RelayShield never declares anything "safe": `unknown` means nothing is known
-against the target right now, not proof it is clean.
+- **BLOCKED**: any target graded `high`. The hook exits 2, which blocks the
+  tool call. The stderr message shows target, score, top reasons, and corpus
+  provenance, and tells the agent to stop or ask the user.
+- **FLAGGED**: worst target graded `medium`. The call is allowed, with a
+  warning on stderr.
+- **ALLOWED**: worst target graded `unknown`, or the screen did not run
+  (request failed or timed out, 10s per check). Fail open, never silent; a
+  one-line note goes to stderr.
+
+RelayShield never declares anything "safe": `unknown` means nothing is
+known against the target right now, not proof it is clean.
+
+## Audit log
+
+Every screening decision is appended as one JSON line to
+`~/.relayshield/guard-audit.jsonl`:
+
+```json
+{"ts":"2026-10-05T11:20:00.000Z","tool_name":"WebFetch","grade":"BLOCKED","targets":[{"target":"http://evil.example/","kind":"url","level":"high","score":90}],"reasons":["..."],"note":"blocked: high-risk target"}
+```
+
+Review what the guard allowed, flagged, or blocked:
+
+```bash
+cat ~/.relayshield/guard-audit.jsonl
+```
+
+## Measurement
 
 Every API call carries `"source": "claude-guard-mod"` so guard traffic is
 distinguishable from other keyless composite-check callers.
 
-## Install
+## Layout
 
-```bash
-claude plugin marketplace add nzdsf2-gif/relayshield-claude-plugin
-claude plugin install relayshield-guard
-```
-
-Or point Claude Code at this repo as a plugin directory. The hook needs
-outbound HTTPS access to the RelayShield API and Node.js on the machine.
-No API key, no signup.
-
-## Contents
-
-- `.claude-plugin/`: plugin manifest and icon.
-- `hooks/hooks.json`: registers the PreToolUse hook on `WebFetch`.
+- `.claude-plugin/plugin.json`: plugin manifest.
+- `hooks/hooks.json`: registers the PreToolUse hook on `WebFetch` and `mcp__*`.
 - `src/guard.ts`: hook source (TypeScript).
 - `dist/guard.js`: compiled hook (what `hooks.json` runs).
-- `skills/relayshield-prebind-screen/SKILL.md`: the pre-bind fraud screen
-  skill for insurance-shopping agents (applicant email, payment links and
-  wallets, screened before an application is submitted or a policy bound).
-
-This plugin replaces the former `relayshield-prebind-screen` plugin; it is a
-strict superset (URLs, EVM/Solana/Bitcoin wallets, applicant emails).
 
 ## Build
 
+```bash
+npm install
+npm run build
 ```
-npm install --no-audit --no-fund typescript @types/node
-npx tsc
+
+## Test
+
+Simulate a hook invocation (blocked case):
+
+```bash
+echo '{"tool_name":"WebFetch","tool_input":{"url":"http://example.com"}}' | node dist/guard.js; echo "exit=$?"
 ```
 
-The compiled `dist/guard.js` is what ships in the plugin.
+Simulate an MCP tool invocation:
 
-## Widening coverage
+```bash
+echo '{"tool_name":"mcp__fetch__fetch","tool_input":{"url":"http://example.com"}}' | node dist/guard.js; echo "exit=$?"
+```
 
-The hook extracts targets generically from `tool_input`, so to screen more
-tool types, add their names to the `matcher` in `hooks/hooks.json`
-(for example `"WebFetch|Bash"`). Keep the matcher narrow on purpose: every
-matched tool call pays one hook round-trip.
+Then check the audit log:
 
-## License
-
-MIT. See `LICENSE`.
-
-## Links
-
-- RelayShield: https://relayshield.net
-- API docs: https://api.relayshield.net/developers
-- Free checks: no signup, no key.
+```bash
+cat ~/.relayshield/guard-audit.jsonl
+```
